@@ -98,12 +98,26 @@ class notify extends \core\task\scheduled_task {
                     }
                 }
             }
-
-            $notify = new \stdClass();
-            $notify->userid = $record->userid;
-            $notify->notifyid = $record->notifyid;
-            $notify->timesent = $now;
-            $DB->insert_record('attendance_warning_done', $notify);
+            // Find all sessions that should now be flagged as notitified for this user.
+            $sql = "SELECT ats.id
+            FROM {attendance_sessions} ats
+            JOIN {attendance_log} atl ON atl.sessionid = ats.id
+            JOIN {attendance} a ON a.id = ats.attendanceid
+            JOIN {course_modules} cm ON cm.instance = a.id
+            JOIN {course} c on c.id = cm.course
+            JOIN {modules} md ON md.id = cm.module AND md.name = 'attendance'
+            LEFT JOIN {attendance_warning_done} ns ON ns.notifyid = n.id AND ns.userid = atl.studentid AND ns.sessionid = ats.id
+            WHERE ats.lasttaken >= ? AND ats.attendanceid = ? AND atl.studentid = ? AND ns.id IS NULL";
+            $sessions = $DB->get_recordset_sql($sql, array($lastrun, $record->aid, $record->userid));
+            foreach ($sessions as $session) {
+                $notify = new \stdClass();
+                $notify->userid = $record->userid;
+                $notify->notifyid = $record->notifyid;
+                $notify->sessionid = $session->id;
+                $notify->timesent = $now;
+                $DB->insert_record('attendance_warning_done', $notify);
+            }
+            $sessions->close();
         }
         if (!empty($numsentusers)) {
             mtrace($numsentusers ." user emails sent");

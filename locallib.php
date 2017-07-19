@@ -743,8 +743,9 @@ function attendance_get_users_to_notify($courseids = array(), $orderby = '', $si
     $idfield = $DB->sql_concat('cm.id', 'atl.studentid', 'n.id');
     $sql = "SELECT {$idfield} as uniqueid, a.id as aid, {$unames2}, a.name as aname, cm.id as cmid, c.id as courseid,
                     c.fullname as coursename, atl.studentid AS userid, n.id as notifyid, n.warningpercent, n.emailsubject,
-                    n.emailcontent, n.emailcontentformat, n.emailuser, n.thirdpartyemails, ns.timesent, n.warnafter,
+                    n.emailcontent, n.emailcontentformat, n.emailuser, n.thirdpartyemails, n.warnafter,
                      COUNT(DISTINCT ats.id) AS numtakensessions, SUM(stg.grade) AS points, SUM(stm.maxgrade) AS maxpoints,
+                      COUNT(DISTINCT ns.id) as nscount, MAX(ns.timesent) as timesent,
                       SUM(stg.grade) / SUM(stm.maxgrade) AS percent
                    FROM {attendance_sessions} ats
                    JOIN {attendance} a ON a.id = ats.attendanceid
@@ -766,18 +767,18 @@ function attendance_get_users_to_notify($courseids = array(), $orderby = '', $si
                   WHERE ats.lasttaken >= {$sincetime} {$where}
                 GROUP BY uniqueid, a.id, a.name, a.course, c.fullname, atl.studentid, n.id, n.warningpercent,
                          n.emailsubject, n.emailcontent, n.emailcontentformat, n.warnafter,
-                         n.emailuser, n.thirdpartyemails, ns.timesent, cm.id, c.id, {$unames2}
+                         n.emailuser, n.thirdpartyemails, cm.id, c.id, {$unames2}, ns.userid, ns.timesent
                 HAVING n.warnafter <= COUNT(DISTINCT ats.id) AND n.warningpercent > ((SUM(stg.grade) / SUM(stm.maxgrade)) * 100)
                       {$orderby}";
 
     if (!$allfornotify) {
         $idfield = $DB->sql_concat('cmid', 'userid');
         // Only show one record per attendance for teacher reports.
-        $sql = "SELECT {$idfield} as id, {$unames}, aid, cmid, courseid, aname, coursename, userid, MIN(warningpercent),
-                        numtakensessions, points, maxpoints, percent, timesent
+        $sql = "SELECT DISTINCT {$idfield} as id, {$unames}, aid, cmid, courseid, aname, coursename, userid,
+                        numtakensessions, percent, MAX(timesent) as timesent
               FROM ({$sql}) as m
-         GROUP BY id, aid, cmid, courseid, aname, userid, numtakensessions, points, maxpoints,
-                  percent, coursename, timesent, {$unames} {$orderby}";
+         GROUP BY id, aid, cmid, courseid, aname, userid, numtakensessions,
+                  percent, coursename, {$unames} {$orderby}";
     }
 
     return $DB->get_records_sql($sql, $params);
